@@ -8,8 +8,14 @@ import sys, json, time
 
 
 def PlayFile(filename, duration = -1):
-    print("PlayFile called. => decompresses json in file and plays sound representation up to 'arg2' seconds (-1 for full file).")
+    print("PlayFile called. => decompresses json in file and plays sound representation up to 'arg2' seconds (-1 to loop file).")
 
+    def farg(finger, booll):
+        # given a string finger name and an on/off bool.
+        print("lol")
+    PlaybackLoop(filename,duration,farg)
+    print("PlayFile ending.")
+    
 def ExecuteFile(filename,duration = -1):
     print("ExecuteFile called. => power vibration motors on GPIO pins.")
     try:
@@ -20,32 +26,86 @@ def ExecuteFile(filename,duration = -1):
         print("This system can't import RPi.GPIO. Is this system a raspberry pi?")
         print(err)
         # return
+    #set up the rpi outputs.
 
-    # read the given file.
+    # G.setmode(G.BCM)
+    # G.setwarnings(False)
+    # PINS = [4,17,27,22,9,18,23,24,25,8]
+    # TEST = [4,17,27,22,9]
+    CONFIG = {"thumb":0,"index":1,"middle":2,"ring":3,"pinky":4}
+    #set output pins for 10 3v 0.8mA rumble motors. start them at 0V.
+    #we can use the following pins
+    #4, 17, 27, 22, 9, 18, 23, 24, 25, 8, 7,  2 and 3 if l2C disabled, 14 and 15 if serial is disabled.
+
+    # for i in TEST:
+    #     G.setup(i, G.OUT)
+    #     G.output(i,G.LOW)
+
+    #on pi zeros, we have 20x2 pinouts, not 13x2 pinouts like on the b+, we have an additional set of pins:
+    # 5, 6, 13, 19, 26, 12, 16, 20, 21
+
+    def farg(finger, booll):
+        val = 'on' if booll else 'off'
+        #val =G.HIGH if booll else G.LOW
+        print(finger + ": " + val)
+        #G.output(TEST[CONFIG[finger]] ,val)
+        #TODO turn on and off the appropriate vibrator based on the finger and boolean
+
+
+    PlaybackLoop(filename,duration, farg)
+    # for finger in TEST:
+    #     # turn off stray finger data
+    #     G.output(finger,G.LOW)
+
+
+
+def PlaybackLoop(filename,duration,func):
     F = None
     try:
         import json
         F = json.load(open(filename, 'r'))
-        print(F)
+        # print(F)
     except Exception as err:
         print("Error loading given filename. Is " + filename + " a real file?")
         print(err)
         return
+    # iterator counter
+    F2 = {}
+    for element in F:
+        F2[element] = 0
+    #execute main loop
+    now = time.time
+    STARTTIME = now()
+    TOTAL = 0
+    while((now() < (STARTTIME + duration - TOTAL)) or (duration < 0)):
+        cur = now()-STARTTIME
+        # for each finger, evaluate if we have passed the last index value or hit the end
+        # if we hit the end, we wait for the last one to end, and then we loop back, resetting STARTTIME
+        for finger in F:
+            if F2[finger] >= len(F[finger]) or F2[finger] == -1:
+                # set to -1
+                F2[finger] = -1
+                continue
+            # if current time greater than the recording index, flip vibrator power and increase index
+            if cur >= F[finger][F2[finger]]:
+                F2[finger] += 1
+                val = True if (F2[finger] % 2 != 0) else False
+                func(finger,val)
+                # print(finger + ": " + val)
+
+        repeat = True
+        for n in F2:
+            if F2[n] != -1:
+                repeat = False
+                break
+        if repeat:
+            TOTAL += cur
+            STARTTIME = now()
+            for n in F2:
+                F2[n] = 0
 
 
-    #set up the rpi outputs.
-    G.setmode(G.BCM)
-    G.setwarnings(False)
-    PINS = [4,17,27,22,9,18,23,24,25,8]
-    TEST = [4,17,27,22,9]
-    #set output pins for 10 3v 0.8mA rumble motors. start them at 0V.
-    #we can use the following pins
-    #4, 17, 27, 22, 9, 18, 23, 24, 25, 8, 7,  2 and 3 if l2C disabled, 14 and 15 if serial is disabled.
-    for i in TEST:
-        G.setup(i, G.OUT)
-        G.output(i,G.LOW)
-    #on pi zeros, we have 20x2 pinouts, not 13x2 pinouts like on the b+, we have an additional set of pins:
-    # 5, 6, 13, 19, 26, 12, 16, 20, 21
+
 
 def RecordFile(filename = ""):
     print("RecordFile called.")
